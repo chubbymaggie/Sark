@@ -2,7 +2,7 @@ import idaapi
 from . import exceptions
 from awesome.context import ignored
 
-DEFMASK = 0xFFFFFFFF
+DEFMASK = idaapi.BADADDR
 
 ENUM_ERROR_MAP = {
     idaapi.ENUM_MEMBER_ERROR_NAME:
@@ -40,12 +40,25 @@ def _get_enum(name):
     return eid
 
 
-def add_enum(name=None, index=idaapi.BADADDR, flags=idaapi.hexflag(), bitfield=False):
-    """Create a new enum."""
+def add_enum(name=None, index=None, flags=idaapi.hexflag(), bitfield=False):
+    """Create a new enum.
+
+    Args:
+        name: Name of the enum to create.
+        index: The index of the enum. Leave at default to append the enum as the last enum.
+        flags: Enum type flags.
+        bitfield: Is the enum a bitfield.
+
+    Returns:
+        An `Enum` object.
+    """
     if name is not None:
         with ignored(exceptions.EnumNotFound):
             _get_enum(name)
             raise exceptions.EnumAlreadyExists()
+
+    if index is None or index < 0:
+        index = idaapi.get_enum_qty()
 
     eid = idaapi.add_enum(index, name, flags)
 
@@ -339,7 +352,7 @@ class EnumMember(object):
 def _iter_bitmasks(eid):
     """Iterate all bitmasks in a given enum.
 
-    Note that while 0xFFFFFFFF indicates no-more-bitmasks, it is also a
+    Note that while `DEFMASK` indicates no-more-bitmasks, it is also a
     valid bitmask value. The only way to tell if it exists is when iterating
     the serials.
     """
@@ -347,7 +360,7 @@ def _iter_bitmasks(eid):
 
     yield bitmask
 
-    while bitmask != 0xFFFFFFFF:
+    while bitmask != DEFMASK:
         bitmask = idaapi.get_next_bmask(eid, bitmask)
         yield bitmask
 
@@ -355,13 +368,13 @@ def _iter_bitmasks(eid):
 def _iter_enum_member_values(eid, bitmask):
     """Iterate member values with given bitmask inside the enum
 
-    Note that 0xFFFFFFFF can either indicate end-of-values or a valid value.
+    Note that `DEFMASK` can either indicate end-of-values or a valid value.
     Iterate serials to tell apart.
     """
     value = idaapi.get_first_enum_member(eid, bitmask)
 
     yield value
-    while value != 0xFFFFFFFF:
+    while value != DEFMASK:
         value = idaapi.get_next_enum_member(eid, value, bitmask)
         yield value
 

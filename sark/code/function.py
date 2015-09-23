@@ -7,6 +7,7 @@ from ..core import set_name, get_ea, fix_addresses, is_same_function
 from .line import Line
 from .xref import Xref
 from ..ui import updates_ui
+from .. import exceptions
 
 
 class Comments(object):
@@ -69,6 +70,10 @@ class Function(object):
 
         elif name is not None:
             ea = idc.LocByName(name)
+            if ea == idc.BADADDR:
+                raise exceptions.SarkNoFunction(
+                    "The supplied name does not belong to an existing function. "
+                    "(name = {!r})".format(name))
 
         elif ea == self.UseCurrentAddress:
             ea = idc.here()
@@ -182,7 +187,11 @@ class Function(object):
 
     @property
     def demangled(self):
-        return idaapi.demangle_name2(self.name, 0)
+        """Return the demangled name of the function. If none exists, return `.name`"""
+        name = idaapi.demangle_name2(self.name, 0)
+        if name:
+            return name
+        return self.name
 
     @name.setter
     def name(self, name):
@@ -240,6 +249,14 @@ class Function(object):
             color = 0xFFFFFFFF
 
         idc.SetColor(self.ea, idc.CIC_FUNC, color)
+
+    @property
+    def has_name(self):
+        return Line(self.startEA).has_name
+
+    @property
+    def func_t(self):
+        return self._func
 
 
 def iter_function_lines(func_ea):

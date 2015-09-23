@@ -3,6 +3,8 @@ import idc
 from threading import RLock
 import itertools
 import wrapt
+from .qt import MenuManager
+import traceback
 
 
 class Update(object):
@@ -262,13 +264,9 @@ class NXGraph(idaapi.GraphViewer):
     def _OnNodeInfo(self, node_id):
         """Sets the node info based on its attributes."""
         handler, value, attrs = self._get_handling_triplet(node_id)
-        bg_color = handler.on_bg_color(value, attrs)
         frame_color = handler.on_frame_color(value, attrs)
 
         node_info = idaapi.node_info_t()
-
-        if bg_color is not None:
-            node_info.bg_color = bg_color
 
         if frame_color is not None:
             node_info.frame_color = frame_color
@@ -285,13 +283,11 @@ class NXGraph(idaapi.GraphViewer):
     def OnGetText(self, node_id):
         handler, value, attrs = self._get_handling_triplet(node_id)
         self._OnNodeInfo(node_id)
-        return self._pad(handler.on_get_text(value, attrs))
+        return (self._pad(handler.on_get_text(value, attrs)), handler.on_bg_color(value, attrs))
 
     def Show(self):
         if not idaapi.GraphViewer.Show(self):
             return False
-
-        self.update_node_info()
 
         return True
 
@@ -310,7 +306,6 @@ class NXGraph(idaapi.GraphViewer):
     def OnActivate(self):
         # Refresh on every activation to keep the graph up to date.
         self.Refresh()
-        self.update_node_info()
         return True
 
     def OnDeactivate(self):
@@ -428,6 +423,8 @@ if idaapi.IDA_SDK_VERSION >= 670:
                 self._activate(ctx)
                 return 1
             except:
+                trace = traceback.format_exc()
+                idaapi.msg("Action {!r} failed to activate. Traceback:\n{}".format(self.get_name(), trace))
                 return 0
 
         def update(self, ctx):
