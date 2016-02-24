@@ -132,7 +132,10 @@ class AddressNodeHandler(BasicNodeHandler):
     """
 
     def on_get_text(self, value, attrs):
-        return idc.Name(value) or "0x{:08X}".format(value)
+        name = idc.GetTrueName(value)
+        demangle = getattr(idaapi, 'demangle_name2', idaapi.demangle_name)
+        name = demangle(name, 0) or name
+        return name or "0x{:08X}".format(value)
 
     def on_double_click(self, value, attrs):
         idaapi.jumpto(value)
@@ -324,6 +327,7 @@ class NXGraph(idaapi.GraphViewer):
         return handler.on_hint(value, attrs)
 
 # Make sure API is supported to enable use of other functionality in older versions.
+# See http://www.hexblog.com/?p=886
 if idaapi.IDA_SDK_VERSION >= 670:
     class ActionHandler(idaapi.action_handler_t):
         """A wrapper around `idaapi.action_handler_t`.

@@ -1,20 +1,14 @@
 import os
 import sys
 
+from cute import QtCore, QtWidgets, QtGui, use_qt5, connect, disconnect, form_to_widget
+
 import idaapi
 
 from . import exceptions
 
-# This nasty piece of code is here to force the loading of IDA's PySide.
-# Without it, Python attempts to load PySide from the site-packages directory,
-# and failing, as it does not play nicely with IDA.
-old_path = sys.path[:]
-try:
-    ida_python_path = os.path.dirname(idaapi.__file__)
-    sys.path.insert(0, ida_python_path)
-    from PySide import QtGui, QtCore
-finally:
-    sys.path = old_path
+# This is an alias left for backwards compatibility. Use `connect` instead.
+connect_method_to_signal = connect
 
 
 def capture_widget(widget, path=None):
@@ -28,7 +22,10 @@ def capture_widget(widget, path=None):
         If a path is provided, the image will be saved to it.
         If not, the PNG buffer will be returned.
     """
-    pixmap = QtGui.QPixmap.grabWidget(widget)
+    if use_qt5:
+        pixmap = widget.grab()
+    else:
+        pixmap = QtGui.QPixmap.grabWidget(widget)
 
     if path:
         pixmap.save(path)
@@ -41,11 +38,6 @@ def capture_widget(widget, path=None):
 
         return image_buffer.data().data()
 
-def form_to_widget(tform):
-    class Ctx(object):
-        QtGui = QtGui
-
-    return idaapi.PluginForm.FormToPySideWidget(tform, ctx=Ctx())
 
 def get_widget(title):
     """Get the Qt widget of the IDA window with the given title."""
@@ -107,7 +99,10 @@ class MenuManager(object):
         super(MenuManager, self).__init__()
 
         self._window = get_window()
-        self._menu = self._window.findChild(QtGui.QMenuBar)
+        if use_qt5:
+            self._menu = self._window.findChild(QtWidgets.QMenuBar)
+        else:
+            self._menu = self._window.findChild(QtGui.QMenuBar)
 
         self._menus = {}
 
@@ -139,4 +134,3 @@ class MenuManager(object):
         for menu in self._menus.itervalues():
             self._menu.removeAction(menu.menuAction())
         self._menus = {}
-

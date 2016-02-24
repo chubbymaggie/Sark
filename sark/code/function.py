@@ -19,6 +19,9 @@ class Comments(object):
     def __init__(self, function):
         self._function = function
 
+    def __nonzero__(self):
+        return any((self.regular, self.repeat, ))
+
     @property
     def regular(self):
         """Function Comment"""
@@ -183,12 +186,16 @@ class Function(object):
     @property
     def name(self):
         """Function's Name"""
-        return idc.Name(self.startEA)
+        return idc.GetTrueName(self.startEA)
 
     @property
     def demangled(self):
         """Return the demangled name of the function. If none exists, return `.name`"""
-        name = idaapi.demangle_name2(self.name, 0)
+        try:
+            name = idaapi.demangle_name2(self.name, 0)
+        except AttributeError:
+            # Backwards compatibility with IDA 6.6
+            name = idaapi.demangle_name(self.name, 0)
         if name:
             return name
         return self.name

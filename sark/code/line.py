@@ -18,6 +18,9 @@ class Comments(object):
     def __init__(self, ea):
         self._ea = ea
 
+    def __nonzero__(self):
+        return any((self.regular, self.repeat, self.anterior, self.posterior,))
+
     @property
     def regular(self):
         """Regular Comment"""
@@ -221,7 +224,7 @@ class Line(object):
     @property
     def name(self):
         """Name of the line (the label shown in IDA)."""
-        return idc.Name(self.ea)
+        return idc.GetTrueName(self.ea)
 
     @name.setter
     def name(self, value):
@@ -295,6 +298,6 @@ def lines(start=None, end=None, reverse=False, selection=False):
 
     else:  # if reverse:
         item = idaapi.get_item_head(end - 1)
-        while item > start:
+        while item >= start:
             yield Line(item)
             item = idaapi.get_item_head(item - 1)

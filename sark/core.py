@@ -152,10 +152,10 @@ def get_name_or_address(ea):
 def get_native_size():
     """Get the native word size in normal 8-bit bytes."""
     info = idaapi.get_inf_structure()
-    if info.is_32bit():
-        return 4
-    elif info.is_64bit():
+    if info.is_64bit():
         return 8
+    elif info.is_32bit():
+        return 4
     else:
         return 2
 
@@ -173,3 +173,9 @@ def is_function(ea):
         return True
     except exceptions.SarkNoFunction:
         return False
+
+
+def is_signed(number, size=None):
+    if not size:
+        size = get_native_size()
+    return number & (1 << ((8 * size) - 1))
