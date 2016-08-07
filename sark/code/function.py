@@ -2,7 +2,7 @@ from itertools import imap
 import idaapi
 import idautils
 import idc
-from .base import get_func
+from .base import get_func, demangle
 from ..core import set_name, get_ea, fix_addresses, is_same_function
 from .line import Line
 from .xref import Xref
@@ -20,7 +20,7 @@ class Comments(object):
         self._function = function
 
     def __nonzero__(self):
-        return any((self.regular, self.repeat, ))
+        return any((self.regular, self.repeat,))
 
     @property
     def regular(self):
@@ -39,7 +39,6 @@ class Comments(object):
     @repeat.setter
     def repeat(self, comment):
         idaapi.set_func_cmt(self._function._func, comment, True)
-
 
     def __repr__(self):
         return ("Comments("
@@ -84,6 +83,9 @@ class Function(object):
         elif ea is None:
             raise ValueError("`None` is not a valid address. To use the current screen ea, "
                              "use `Function(ea=Function.UseCurrentAddress)` or supply no `ea`.")
+
+        elif isinstance(ea, Line):
+            ea = ea.ea
 
         self._func = get_func(ea)
         self._comments = Comments(self)
@@ -152,6 +154,10 @@ class Function(object):
                 yield xref
 
     @property
+    def calls_from(self):
+        return (xref for xref in self.xrefs_from if xref.type.is_call)
+
+    @property
     def drefs_from(self):
         """Destination addresses of data xrefs from this function."""
         for line in self.lines:
@@ -191,14 +197,7 @@ class Function(object):
     @property
     def demangled(self):
         """Return the demangled name of the function. If none exists, return `.name`"""
-        try:
-            name = idaapi.demangle_name2(self.name, 0)
-        except AttributeError:
-            # Backwards compatibility with IDA 6.6
-            name = idaapi.demangle_name(self.name, 0)
-        if name:
-            return name
-        return self.name
+        return demangle(self.name)
 
     @name.setter
     def name(self, name):

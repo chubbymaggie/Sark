@@ -6,7 +6,8 @@ from ..core import fix_addresses
 from .xref import Xref
 from .instruction import Instruction
 from ..ui import updates_ui
-from .base import get_selection
+from .base import get_selection, get_offset_name, demangle
+from .. import data
 
 
 class Comments(object):
@@ -51,7 +52,7 @@ class Comments(object):
         if not comment:
             idc.DelExtLnA(self._ea, 0)
             return
-        
+
         index = 0
 
         for index, line in enumerate(comment.splitlines()):
@@ -71,7 +72,7 @@ class Comments(object):
         if not comment:
             idc.DelExtLnB(self._ea, 0)
             return
-        
+
         index = 0
 
         for index, line in enumerate(comment.splitlines()):
@@ -109,7 +110,6 @@ class Line(object):
         Usually, this is not the desired outcome. This object resolves this issue.
         """
         pass
-
 
     def __init__(self, ea=UseCurrentAddress, name=None):
         if name is not None and ea != self.UseCurrentAddress:
@@ -155,6 +155,11 @@ class Line(object):
         return idaapi.isTail(self.flags)
 
     @property
+    def is_string(self):
+        """Is the line a string."""
+        return data.is_string(self.ea)
+
+    @property
     def comments(self):
         """Comments"""
         return self._comments
@@ -186,6 +191,10 @@ class Line(object):
         :return: Xrefs as `sark.code.xref.Xref` objects.
         """
         return imap(Xref, idautils.XrefsFrom(self.ea))
+
+    @property
+    def calls_from(self):
+        return (xref for xref in self.xrefs_from if xref.type.is_call)
 
     @property
     def drefs_from(self):
@@ -231,6 +240,11 @@ class Line(object):
         idc.MakeName(self.ea, value)
 
     @property
+    def demangled(self):
+        """Return the demangled name of the line. If none exists, return `.name`"""
+        return demangle(self.name)
+
+    @property
     def insn(self):
         """Instruction"""
         return Instruction(self.ea)
@@ -270,6 +284,23 @@ class Line(object):
     def has_name(self):
         """Does the current line have a non-trivial (non-dummy) name?"""
         return idaapi.has_name(self.flags)
+
+    @property
+    def offset_name(self):
+        return get_offset_name(self.ea)
+
+    @property
+    def bytes(self):
+        return idaapi.get_many_bytes(self.ea, self.size)
+
+    def __eq__(self, other):
+        if not isinstance(other, Line):
+            return False
+
+        return self.ea == other.ea
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
 
 def lines(start=None, end=None, reverse=False, selection=False):

@@ -1,9 +1,8 @@
-import idc
 import networkx
 
 import idaapi
-from .code import lines
-from .core import get_func
+from .code import lines, functions
+from .core import get_func, fix_addresses
 
 
 class CodeBlock(idaapi.BasicBlock):
@@ -32,13 +31,26 @@ class CodeBlock(idaapi.BasicBlock):
         for line in self.lines:
             line.color = color
 
-        node_info = idaapi.node_info_t()
-        node_info.bg_color = color
-        idaapi.set_node_info2(self.startEA, self.id, node_info, idaapi.NIF_BG_COLOR)
+        if color is None:
+            idaapi.clr_node_info2(self._fc._q.bounds.startEA, self.id, idaapi.NIF_BG_COLOR)
+
+        else:
+            node_info = idaapi.node_info_t()
+            node_info.bg_color = color
+            idaapi.set_node_info2(self._fc._q.bounds.startEA, self.id, node_info, idaapi.NIF_BG_COLOR)
 
     @property
     def color(self):
-        return next(self.lines).color
+        node_info = idaapi.node_info_t()
+        success = idaapi.get_node_info2(node_info, self._fc._q.bounds.startEA, self.id)
+
+        if not success:
+            return None
+
+        if not node_info.valid_bg_color():
+            return None
+
+        return node_info.bg_color
 
     @color.setter
     def color(self, color):
@@ -97,3 +109,24 @@ def get_nx_graph(ea):
             nx_graph.add_edge(block.startEA, succ.startEA)
 
     return nx_graph
+
+
+def codeblocks(start=None, end=None, full=True):
+    """Get all `CodeBlock`s in a given range.
+
+    Args:
+        start - start address of the range. If `None` uses IDB start.
+        end - end address of the range. If `None` uses IDB end.
+        full - `True` is required to change node info (e.g. color). `False` causes faster iteration.
+    """
+    if full:
+        for function in functions(start, end):
+            fc = FlowChart(f=function.func_t)
+            for block in fc:
+                yield block
+
+    else:
+        start, end = fix_addresses(start, end)
+
+        for code_block in FlowChart(bounds=(start, end)):
+            yield code_block

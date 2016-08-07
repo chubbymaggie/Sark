@@ -3,8 +3,8 @@ import idautils
 import idc
 
 from . import base
-from .. import exceptions
 from .. import core
+from .. import exceptions
 
 OPND_WRITE_FLAGS = {
     0: idaapi.CF_CHG1,
@@ -37,7 +37,8 @@ class Phrase(object):
 
         proc_name = idaapi.get_inf_structure().procName
         if proc_name != 'metapc':
-            raise exceptions.PhraseProcessorNotSupported('Phrase analysis not supported for processor {}'.format(proc_name))
+            raise exceptions.PhraseProcessorNotSupported(
+                'Phrase analysis not supported for processor {}'.format(proc_name))
 
         specflag1 = self.op_t.specflag1
         specflag2 = self.op_t.specflag2
@@ -138,7 +139,6 @@ class OperandType(object):
         """Name of the xref type."""
         return self.TYPES.get(self._type, self.TYPES[idaapi.o_idpspec0])
 
-
     def __repr__(self):
         return self.name
 
@@ -188,12 +188,14 @@ class OperandType(object):
 
 
 class Operand(object):
-    def __init__(self, operand, ea, write=False, read=False):
+    def __init__(self, operand, ea, insn, write=False, read=False):
         self._operand = operand
         self._write = write
         self._read = read
         self._type = OperandType(operand.type)
         self._ea = ea
+        # We have to save the `insn_t` object referenced to make sure the `op_t` object is not released on the C side.
+        self._insn = insn
         try:
             self._phrase = Phrase(operand)
         except exceptions.PhraseError:
@@ -321,6 +323,27 @@ class Operand(object):
         return self.addr
 
 
+class IndexingMode(object):
+    def __init__(self, pre=False, post=False):
+        self.pre = pre
+        self.post = post
+
+    @property
+    def is_pre(self):
+        return self.pre
+
+    @property
+    def is_post(self):
+        return self.post
+
+    @property
+    def is_none(self):
+        return not (self.pre or self.post)
+
+    def __nonzero__(self):
+        return self.pre or self.post
+
+
 class Instruction(object):
     def __init__(self, ea):
         self._ea = ea
@@ -338,6 +361,7 @@ class Instruction(object):
                 break  # No more operands.
             operands.append(Operand(operand,
                                     self._ea,
+                                    insn=self._insn,
                                     write=self.is_operand_written_to(index),
                                     read=self.is_operand_read_from(index)))
         return operands
@@ -397,3 +421,11 @@ class Instruction(object):
     @property
     def insn_t(self):
         return self._insn
+
+    @property
+    def indexing_mode(self):
+        if idaapi.get_inf_structure().procName != 'ARM':
+            return IndexingMode()
+
+        return IndexingMode(pre=bool(self.insn_t.auxpref & 0x20),
+                            post=bool(self.insn_t.auxpref & 0x80))
